@@ -22,10 +22,10 @@ import {
 import { getErrorMessage } from '@/lib/data/errors';
 
 const REPORTS: { key: string; title: string; description: string; generate: () => Promise<string> }[] = [
-  { key: 'client', title: 'Client Report', description: 'All clients — code, contact, status', generate: generateClientReportCsv },
-  { key: 'coach', title: 'Coach Report', description: 'All coaches — specialization, utilization', generate: generateCoachReportCsv },
-  { key: 'monthly_pt', title: 'Monthly PT Report', description: 'Sessions & revenue by month', generate: generateMonthlyPtReportCsv },
-  { key: 'revenue', title: 'Revenue Report', description: 'Full transaction ledger', generate: generateRevenueReportCsv },
+  { key: 'client', title: 'Client Report', description: 'All clients — plan, coach, sessions remaining/total', generate: generateClientReportCsv },
+  { key: 'coach', title: 'Coach Report', description: 'All coaches — rating, review count, utilization', generate: generateCoachReportCsv },
+  { key: 'monthly_pt', title: 'Monthly PT Report', description: 'Sessions, completion rate & assessments by month', generate: generateMonthlyPtReportCsv },
+  { key: 'revenue', title: 'Revenue Report', description: 'Revenue & completed sessions by month', generate: generateRevenueReportCsv },
   { key: 'cancellation', title: 'Cancellation / No-Show Report', description: 'Cancelled and missed sessions', generate: generateCancellationReportCsv },
 ];
 

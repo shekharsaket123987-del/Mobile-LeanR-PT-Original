@@ -4,9 +4,16 @@
  * + Session Rules card (4 range-bound values — number fields here since
  * no native slider dependency exists in this app; same min/max/step
  * bounds as web's sliders, clamped on save).
+ *
+ * The "+ Add Package" modal now includes Features + Highlight, the last
+ * 2 of the PRD's 8 documented fields (Name, Category, Sessions, Price,
+ * Original Price, Default Pause-Days, Features, Highlight) — the data
+ * layer already modeled both but no UI control previously existed to
+ * set them. Delete now confirms first, using the PRD's exact copy
+ * ("Clients with an active subscription on this package keep it.").
  */
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { LightBadge } from '@/components/light/light-badge';
 import { LightGhostButton, LightPrimaryButton, LightSecondaryButton } from '@/components/light/light-button';
@@ -50,6 +57,7 @@ export default function AdminSettingsScreen() {
 
   const [editingPackage, setEditingPackage] = useState<PackageTier | 'new' | null>(null);
   const [form, setForm] = useState<PackageInput>(emptyPackageForm());
+  const [featuresText, setFeaturesText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,14 +73,22 @@ export default function AdminSettingsScreen() {
         ? emptyPackageForm()
         : { name: pkg.name, category: pkg.category, sessions_count: pkg.sessions_count, price: pkg.price, original_price: pkg.original_price, features: pkg.features, highlighted: pkg.highlighted, default_pause_days: pkg.default_pause_days ?? 0 }
     );
+    setFeaturesText(pkg === 'new' ? '' : pkg.features.join(', '));
   };
 
   const onSavePackage = async () => {
     setBusy(true);
     setError(null);
     try {
-      if (editingPackage === 'new') await createPackage(form);
-      else if (editingPackage) await updatePackage(editingPackage.id, form);
+      const payload: PackageInput = {
+        ...form,
+        features: featuresText
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      };
+      if (editingPackage === 'new') await createPackage(payload);
+      else if (editingPackage) await updatePackage(editingPackage.id, payload);
       setEditingPackage(null);
       reloadPackages();
     } catch (err) {
@@ -93,6 +109,13 @@ export default function AdminSettingsScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const confirmDeletePackage = (id: string) => {
+    Alert.alert('Delete package?', 'Clients with an active subscription on this package keep it.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDeletePackage(id) },
+    ]);
   };
 
   const currentRuleValues: Record<SessionRuleKey, string> =
@@ -144,7 +167,7 @@ export default function AdminSettingsScreen() {
               <LightGhostButton size="sm" onPress={() => openEdit(p)}>
                 Edit
               </LightGhostButton>
-              <LightGhostButton size="sm" onPress={() => onDeletePackage(p.id)} disabled={!p.is_active || busy}>
+              <LightGhostButton size="sm" onPress={() => confirmDeletePackage(p.id)} disabled={!p.is_active || busy}>
                 Delete
               </LightGhostButton>
             </View>
@@ -187,6 +210,16 @@ export default function AdminSettingsScreen() {
             onChangeText={(v) => setForm((f) => ({ ...f, default_pause_days: Number(v) || 0 }))}
             accessibilityLabel="Default pause days"
           />
+          <LightTextField
+            placeholder="Features (comma-separated)"
+            value={featuresText}
+            onChangeText={setFeaturesText}
+            multiline
+            accessibilityLabel="Features"
+          />
+          <LightChipGrid>
+            <LightChip label="Highlighted" selected={form.highlighted} onPress={() => setForm((f) => ({ ...f, highlighted: !f.highlighted }))} />
+          </LightChipGrid>
           {error && <Text style={styles.errorText}>{error}</Text>}
           <View style={styles.editActions}>
             <LightSecondaryButton onPress={() => setEditingPackage(null)}>Cancel</LightSecondaryButton>

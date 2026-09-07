@@ -100,29 +100,35 @@ export type BookingSettings = {
   assessmentSessionDurationMinutes: number;
 };
 
+/**
+ * New PRD.md §27: `default_session_duration_minutes`/`assessment_session_duration_minutes`
+ * are NOT live on web — the real session/assessment durations are hardcoded (45/60)
+ * in `client-portal.actions.ts::getBookingOptionsAction`; the "default duration" setting
+ * only moves the admin dashboard's empty-slot KPI (see admin-dashboard.ts), and the
+ * assessment one has zero live readers on web at all. Hardcoded here to match exactly —
+ * previously these were read live from `system_settings`, which meant moving either
+ * admin Settings slider (or that DB row) would silently change the real booked-session
+ * length on mobile in a way it never does on web.
+ */
+const WEB_HARDCODED_SESSION_DURATION_MINUTES = 45;
+const WEB_HARDCODED_ASSESSMENT_DURATION_MINUTES = 60;
+
 /** §13 system_settings — read live so an admin change is reflected without a client update. */
 export async function getBookingSettings(): Promise<BookingSettings> {
   const { data, error } = await supabase
     .from('system_settings')
     .select('key, value')
-    .in('key', [
-      'booking_window_start_hour',
-      'booking_window_end_hour',
-      'default_session_duration_minutes',
-      'temporary_booking_hold_minutes',
-      'reschedule_cutoff_hours',
-      'assessment_session_duration_minutes',
-    ]);
+    .in('key', ['booking_window_start_hour', 'booking_window_end_hour', 'temporary_booking_hold_minutes', 'reschedule_cutoff_hours']);
   if (error) throw error;
 
   const byKey = Object.fromEntries((data ?? []).map((row) => [row.key, row.value as number]));
   return {
     bookingWindowStartHour: byKey.booking_window_start_hour ?? 5,
     bookingWindowEndHour: byKey.booking_window_end_hour ?? 22,
-    defaultSessionDurationMinutes: byKey.default_session_duration_minutes ?? 45,
+    defaultSessionDurationMinutes: WEB_HARDCODED_SESSION_DURATION_MINUTES,
     temporaryBookingHoldMinutes: byKey.temporary_booking_hold_minutes ?? 10,
     rescheduleCutoffHours: byKey.reschedule_cutoff_hours ?? 1,
-    assessmentSessionDurationMinutes: byKey.assessment_session_duration_minutes ?? 60,
+    assessmentSessionDurationMinutes: WEB_HARDCODED_ASSESSMENT_DURATION_MINUTES,
   };
 }
 
