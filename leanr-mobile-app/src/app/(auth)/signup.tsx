@@ -50,6 +50,8 @@ export default function SignupScreen() {
   const onSubmit = async () => {
     setError(null);
     if (!fullName.trim()) return setError('Enter your name.');
+    if (fullName.trim().length > 100) return setError('Name must be 100 characters or fewer.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('Enter a valid email address.');
     if (!isValidMobile(mobile)) return setError('Enter a valid mobile number.');
     if (password.length < 8) return setError('Password must be at least 8 characters.');
 
@@ -155,7 +157,7 @@ export default function SignupScreen() {
 
   return (
     <LightAuthShell title="Create your account" subtitle="Get matched with your coach in minutes.">
-      <LightTextField icon="person-outline" placeholder="Full name" autoComplete="name" value={fullName} onChangeText={setFullName} />
+      <LightTextField icon="person-outline" placeholder="Full name" autoComplete="name" maxLength={100} value={fullName} onChangeText={setFullName} />
       <LightTextField
         icon="mail-outline"
         placeholder="Email"

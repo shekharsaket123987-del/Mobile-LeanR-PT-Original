@@ -24,6 +24,7 @@ export default function LoginScreen() {
 
   const onSubmit = async () => {
     setError(null);
+    if (!email.trim() || !password) return setError('Enter your email and password.');
     setSubmitting(true);
     const { error: signInError } = await signInWithPassword(email.trim(), password);
     setSubmitting(false);

@@ -122,7 +122,7 @@ export default function AdminProfileScreen() {
 
       <LightCard style={styles.card}>
         <LightSectionHeader title="Your details" />
-        <LightTextField placeholder="Full name" value={displayName} onChangeText={setFullName} accessibilityLabel="Full name" />
+        <LightTextField placeholder="Full name" value={displayName} onChangeText={setFullName} maxLength={100} accessibilityLabel="Full name" />
         <LightTextField placeholder="Phone number" value={displayPhone} onChangeText={setPhone} keyboardType="phone-pad" accessibilityLabel="Phone number" />
         {profileError && <Text style={styles.errorText}>{profileError}</Text>}
         {profileSaved && <Text style={styles.savedText}>Saved.</Text>}

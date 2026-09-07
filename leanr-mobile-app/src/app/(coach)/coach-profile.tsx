@@ -166,7 +166,7 @@ export default function CoachProfileScreen() {
 
       <LightCard style={styles.card}>
         <LightSectionHeader title="Your details" />
-        <LightTextField placeholder="Full name" value={displayName} onChangeText={setFullName} accessibilityLabel="Full name" />
+        <LightTextField placeholder="Full name" value={displayName} onChangeText={setFullName} maxLength={100} accessibilityLabel="Full name" />
         <LightTextField placeholder="Phone number" value={displayPhone} onChangeText={setPhone} keyboardType="phone-pad" accessibilityLabel="Phone number" />
         <LightTextField
           placeholder="Emergency contact"
