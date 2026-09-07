@@ -156,12 +156,17 @@ async function handleRequest(req: Request): Promise<Response> {
 
     const { data: payment, error: paymentError } = await admin
       .from("payments")
-      .select("id, client_id, package_id, status")
+      .select("id, client_id, package_id, status, subscription_id")
       .eq("razorpay_order_id", razorpay_order_id)
       .single();
     if (paymentError || !payment) return jsonResponse({ error: "Payment record not found." }, 404);
     if (payment.client_id !== clientId) return jsonResponse({ error: "Not your payment." }, 403);
-    if (payment.status === "paid") return jsonResponse({ error: "Already verified." }, 409);
+    // Idempotent: a duplicate callback (client retry, or a future webhook safety net) for an
+    // already-fulfilled payment is a safe no-op that returns the same success shape, not an error.
+    if (payment.status === "paid") return jsonResponse({ success: true, subscriptionId: payment.subscription_id });
+    if (payment.status !== "created") {
+      return jsonResponse({ error: `This payment can no longer be verified (reference: ${razorpay_order_id}). Contact support if you were charged.` }, 409);
+    }
 
     const expectedSignature = await hmacSha256Hex(RAZORPAY_KEY_SECRET, `${razorpay_order_id}|${razorpay_payment_id}`);
     if (expectedSignature !== razorpay_signature) {
@@ -181,7 +186,25 @@ async function handleRequest(req: Request): Promise<Response> {
       .single();
     if (pkgError || !pkg) {
       await admin.from("payments").update({ status: "paid_unfulfilled" }).eq("id", payment.id);
-      return jsonResponse({ error: "Payment captured but plan lookup failed; contact support." }, 500);
+      return jsonResponse({ error: `Payment captured but plan lookup failed. Contact support with reference: ${razorpay_order_id}.` }, 500);
+    }
+
+    // Second-layer defense against the same TOCTOU race create-order's own check guards against:
+    // two parallel purchase flows can both pass that earlier check before either has committed a
+    // subscription row. Re-checking here, right before insert, matches web's documented second
+    // line of defense inside its own fulfillment step.
+    const { data: raceSub } = await admin
+      .from("subscriptions")
+      .select("id")
+      .eq("client_id", clientId)
+      .in("status", ["active", "awaiting_activation"])
+      .maybeSingle();
+    if (raceSub) {
+      await admin.from("payments").update({ status: "paid_unfulfilled" }).eq("id", payment.id);
+      return jsonResponse(
+        { error: `You already have a plan. This payment was captured but not applied — contact support with reference: ${razorpay_order_id}.` },
+        409
+      );
     }
 
     const { data: subscription, error: subError } = await admin
@@ -199,7 +222,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (subError) {
       await admin.from("payments").update({ status: "paid_unfulfilled" }).eq("id", payment.id);
       return jsonResponse(
-        { error: "Payment captured but activating your plan failed — contact support so we can fix it manually." },
+        { error: `Payment captured but activating your plan failed. Contact support with reference: ${razorpay_order_id}.` },
         500
       );
     }

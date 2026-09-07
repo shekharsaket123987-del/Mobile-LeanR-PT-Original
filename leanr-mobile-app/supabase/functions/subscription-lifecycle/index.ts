@@ -32,6 +32,31 @@ function istDateKey(iso: string): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+/** Fire-and-forget — a failed notification insert must never surface as an error on a real state change. */
+async function notifyProfile(
+  admin: ReturnType<typeof createClient>,
+  profileId: string | null,
+  type: "booking" | "system",
+  title: string,
+  message: string,
+  templateKey: string
+): Promise<void> {
+  if (!profileId) return;
+  try {
+    await admin.from("notifications").insert({ user_id: profileId, type, title, message, template_key: templateKey });
+  } catch (err) {
+    console.error("[subscription-lifecycle] notification insert failed:", err);
+  }
+}
+
+/** The client's currently-assigned coach's profiles.id (auth uid), via their active recurring slot, if any. */
+async function resolveAssignedCoachProfileId(admin: ReturnType<typeof createClient>, clientId: string): Promise<string | null> {
+  const { data: slot } = await admin.from("recurring_slots").select("coach_id").eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle();
+  if (!slot?.coach_id) return null;
+  const { data: coach } = await admin.from("coach_profiles").select("profile_id").eq("id", slot.coach_id).maybeSingle();
+  return (coach?.profile_id as string | undefined) ?? null;
+}
+
 Deno.serve(async (req: Request) => {
   try {
     return await handleRequest(req);
@@ -68,7 +93,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const { data: subscription, error: subError } = await admin
     .from("subscriptions")
-    .select("id, client_id, status")
+    .select("id, client_id, status, package_id")
     .eq("id", subscriptionId)
     .single();
   if (subError || !subscription) return jsonResponse({ error: "Subscription not found." }, 404);
@@ -101,6 +126,8 @@ async function handleRequest(req: Request): Promise<Response> {
       .eq("status", "active")
       .neq("id", subscriptionId);
 
+    await notifyProfile(admin, userData.user.id, "booking", "Plan activated", `Your plan starts on ${startDate}.`, "plan_activated_client");
+
     return jsonResponse({ success: true });
   }
 
@@ -113,6 +140,13 @@ async function handleRequest(req: Request): Promise<Response> {
       .update({ status: "paused", paused_at: new Date().toISOString() })
       .eq("id", subscriptionId);
     if (updateError) return jsonResponse({ error: updateError.message }, 500);
+
+    const { data: pkg } = await admin.from("package_tiers").select("name").eq("id", subscription.package_id).maybeSingle();
+    const planName = pkg?.name ?? "your plan";
+    await notifyProfile(admin, userData.user.id, "system", "Plan paused", `Your ${planName} subscription has been paused.`, "subscription_paused_client");
+    const coachProfileId = await resolveAssignedCoachProfileId(admin, clientId);
+    await notifyProfile(admin, coachProfileId, "system", "Client plan paused", `A client's ${planName} subscription has been paused.`, "subscription_paused_coach");
+
     return jsonResponse({ success: true });
   }
 
@@ -125,6 +159,13 @@ async function handleRequest(req: Request): Promise<Response> {
       .update({ status: "active", resumed_at: new Date().toISOString() })
       .eq("id", subscriptionId);
     if (updateError) return jsonResponse({ error: updateError.message }, 500);
+
+    const { data: pkg } = await admin.from("package_tiers").select("name").eq("id", subscription.package_id).maybeSingle();
+    const planName = pkg?.name ?? "your plan";
+    await notifyProfile(admin, userData.user.id, "system", "Plan resumed", `Your ${planName} subscription has been resumed.`, "subscription_resumed_client");
+    const coachProfileId = await resolveAssignedCoachProfileId(admin, clientId);
+    await notifyProfile(admin, coachProfileId, "system", "Client plan resumed", `A client's ${planName} subscription has been resumed.`, "subscription_resumed_coach");
+
     return jsonResponse({ success: true });
   }
 
