@@ -15,6 +15,7 @@
  */
 import { supabase } from '@/lib/supabase/client';
 import { deriveClientStatus, type DerivedClientStatus } from './coach-clients';
+import { notifyProfile, resolveProfileIdForCoach } from './notify';
 import type { Booking } from './types';
 
 const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -199,14 +200,43 @@ export async function grantPauseDays(subscriptionId: string, newPauseDaysAllowed
   if (error) throw error;
 }
 
+/** Resolves the client + assigned coach + plan name for a subscription, for the pause/resume notifications below. */
+async function getSubscriptionNotifyContext(subscriptionId: string): Promise<{ clientProfileId: string | null; coachProfileId: string | null; planName: string }> {
+  const { data: sub, error: subError } = await supabase.from('subscriptions').select('client_id, package_id').eq('id', subscriptionId).maybeSingle();
+  if (subError) throw subError;
+  if (!sub) return { clientProfileId: null, coachProfileId: null, planName: 'your plan' };
+
+  const [clientRow, pkgRow, slotRow] = await Promise.all([
+    supabase.from('client_profiles').select('profile_id').eq('id', sub.client_id).maybeSingle(),
+    sub.package_id ? supabase.from('package_tiers').select('name').eq('id', sub.package_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    supabase.from('recurring_slots').select('coach_id').eq('client_id', sub.client_id).eq('status', 'active').limit(1).maybeSingle(),
+  ]);
+  if (clientRow.error) throw clientRow.error;
+
+  const coachProfileId = slotRow.data?.coach_id ? await resolveProfileIdForCoach(slotRow.data.coach_id) : null;
+  return {
+    clientProfileId: clientRow.data?.profile_id ?? null,
+    coachProfileId,
+    planName: pkgRow.data?.name ?? 'your plan',
+  };
+}
+
 export async function pauseClientSubscription(subscriptionId: string): Promise<void> {
   const { error } = await supabase.from('subscriptions').update({ status: 'paused', paused_at: new Date().toISOString() }).eq('id', subscriptionId);
   if (error) throw error;
+
+  const { clientProfileId, coachProfileId, planName } = await getSubscriptionNotifyContext(subscriptionId);
+  await notifyProfile(clientProfileId, 'system', 'Subscription paused', `Your ${planName} subscription has been paused.`, 'subscription_paused_client');
+  await notifyProfile(coachProfileId, 'system', 'Client subscription paused', `A client's ${planName} subscription has been paused.`, 'subscription_paused_coach');
 }
 
 export async function resumeClientSubscription(subscriptionId: string): Promise<void> {
   const { error } = await supabase.from('subscriptions').update({ status: 'active', resumed_at: new Date().toISOString() }).eq('id', subscriptionId);
   if (error) throw error;
+
+  const { clientProfileId, coachProfileId, planName } = await getSubscriptionNotifyContext(subscriptionId);
+  await notifyProfile(clientProfileId, 'system', 'Subscription resumed', `Your ${planName} subscription has been resumed.`, 'subscription_resumed_client');
+  await notifyProfile(coachProfileId, 'system', 'Client subscription resumed', `A client's ${planName} subscription has been resumed.`, 'subscription_resumed_coach');
 }
 
 /**
@@ -219,10 +249,11 @@ export async function resumeClientSubscription(subscriptionId: string): Promise<
 export async function transferClientCoach(clientId: string, newCoachId: string, force = false): Promise<void> {
   const { data: slots, error: slotsError } = await supabase
     .from('recurring_slots')
-    .select('id, day_of_week, start_time, duration_minutes')
+    .select('id, coach_id, day_of_week, start_time, duration_minutes')
     .eq('client_id', clientId)
     .eq('status', 'active');
   if (slotsError) throw slotsError;
+  const oldCoachId: string | null = slots?.[0]?.coach_id ?? null;
 
   if (!force) {
     const { data: availability, error: availabilityError } = await supabase
@@ -247,6 +278,26 @@ export async function transferClientCoach(clientId: string, newCoachId: string, 
     .eq('client_id', clientId)
     .eq('status', 'upcoming');
   if (bookingUpdateError) throw bookingUpdateError;
+
+  // Notifications — Gap Verification Report Area 6: same 3 template keys as an approved coach-change-with-coach.
+  const [clientRow, newCoachRow] = await Promise.all([
+    supabase.from('client_profiles').select('profile_id, profiles(full_name)').eq('id', clientId).maybeSingle(),
+    supabase.from('coach_profiles').select('profile_id, profiles(full_name)').eq('id', newCoachId).maybeSingle(),
+  ]);
+  if (clientRow.error) throw clientRow.error;
+  if (newCoachRow.error) throw newCoachRow.error;
+
+  const clientProfile = clientRow.data ? (Array.isArray(clientRow.data.profiles) ? clientRow.data.profiles[0] : clientRow.data.profiles) : null;
+  const clientName = clientProfile?.full_name ?? 'Client';
+  const newCoachProfile = newCoachRow.data ? (Array.isArray(newCoachRow.data.profiles) ? newCoachRow.data.profiles[0] : newCoachRow.data.profiles) : null;
+  const newCoachName = newCoachProfile?.full_name ?? 'your new coach';
+
+  await notifyProfile(clientRow.data?.profile_id ?? null, 'booking', 'Coach changed', `You've been moved to ${newCoachName}.`, 'coach_changed_client');
+  if (oldCoachId) {
+    const oldCoachProfileId = await resolveProfileIdForCoach(oldCoachId);
+    await notifyProfile(oldCoachProfileId, 'booking', 'Client transferred', `${clientName} has been transferred to another coach.`, 'client_transferred');
+  }
+  await notifyProfile(newCoachRow.data?.profile_id ?? null, 'booking', 'New client assigned', `${clientName} has been assigned to you.`, 'new_client_assigned');
 }
 
 export type MeasurementInput = {
@@ -270,6 +321,16 @@ export async function logMeasurement(clientId: string, input: MeasurementInput):
 export async function logEscalation(clientId: string, coachId: string | null, reason: string, description: string | null): Promise<void> {
   const { error } = await supabase.from('escalations').insert({ client_id: clientId, coach_id: coachId, reason, description, status: 'open', raised_by: null });
   if (error) throw error;
+
+  if (coachId) {
+    const [coachProfileId, clientRow] = await Promise.all([
+      resolveProfileIdForCoach(coachId),
+      supabase.from('client_profiles').select('profiles(full_name)').eq('id', clientId).maybeSingle(),
+    ]);
+    const clientProfile = clientRow.data ? (Array.isArray(clientRow.data.profiles) ? clientRow.data.profiles[0] : clientRow.data.profiles) : null;
+    const clientName = clientProfile?.full_name ?? 'A client';
+    await notifyProfile(coachProfileId, 'feedback', 'Concern raised', `${clientName} raised a concern: ${reason}`, 'escalation_raised_to_coach');
+  }
 }
 
 /**

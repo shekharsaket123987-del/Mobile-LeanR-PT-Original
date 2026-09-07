@@ -3,6 +3,14 @@
  * info, edit (name/phone/photo — same `profiles`-table scope every role
  * shares), notifications, logout. Reuses `profile.ts` verbatim (role-
  * agnostic, `auth.uid()`-scoped, same as the coach profile screen).
+ *
+ * NOTE (Gap Verification Report, Area 7): the web app has NO admin-profile
+ * route or edit UI at all — only a read-only sidebar identity block (name +
+ * avatar + a hardcoded "Operations Team" subtitle) + logout. This screen's
+ * edit/password-change capability is therefore new functionality beyond
+ * web parity, not a ported feature — flagged per the report's explicit
+ * instruction, not rolled back, since nothing on the web side requires
+ * removing it.
  */
 import { router } from 'expo-router';
 import { useState } from 'react';

@@ -1,16 +1,15 @@
 /**
  * Leave Requests (admin) — New PRD.md §4.C "Screen: Leave Requests".
- * Approve/Reject a coach's pending leave request. Relit from the
- * previous dark-theme version — same data layer (admin-leave.ts),
- * untouched. Note (documented in the build plan): this simplified
- * approve/reject does not run the web app's automatic shadow-coverage
- * cascade (that scoring algorithm lives only in the web repo's
- * scheduling.service.ts) — any gap it leaves is closed via the
- * Shadow Coverage screen's manual "Assign shadow coach" tool, the same
- * fallback the web app itself provides for cases its own cascade misses.
+ * Approve/Reject a coach's pending leave request. Approving a full-day
+ * leave now runs the automatic shadow-coverage cascade (New PRD.md §3.15)
+ * via `resolveLeaveRequest` — see admin-leave.ts / admin-shadow.ts. Any
+ * occurrence the cascade can't cover is surfaced here and remains
+ * reachable via the Shadow Coverage screen's manual "Assign shadow coach"
+ * tool, the same fallback the web app itself provides for cases its own
+ * cascade misses.
  */
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 
 import { LightCard } from '@/components/light/light-card';
 import { LightDestructiveButton, LightPrimaryButton } from '@/components/light/light-button';
@@ -42,7 +41,24 @@ function LeaveRow({ request, onResolved }: { request: AdminLeaveRequest; onResol
     setBusy(status === 'approved' ? 'approve' : 'reject');
     setError(null);
     try {
-      await resolveLeaveRequest(request.id, status);
+      const outcome = await resolveLeaveRequest(request.id, status);
+      if (outcome && (outcome.autoAssigned.length > 0 || outcome.needsManual.length > 0)) {
+        const lines: string[] = [];
+        if (outcome.autoAssigned.length > 0) {
+          lines.push(
+            'Auto-assigned:',
+            ...outcome.autoAssigned.map((a) => `• ${a.clientName} → ${a.shadowCoachName}`)
+          );
+        }
+        if (outcome.needsManual.length > 0) {
+          if (lines.length > 0) lines.push('');
+          lines.push(
+            'Needs manual assignment (see Shadow Coverage):',
+            ...outcome.needsManual.map((n) => `• ${n.clientName}`)
+          );
+        }
+        Alert.alert('Shadow coverage', lines.join('\n'));
+      }
       onResolved();
     } catch (err) {
       setError(getErrorMessage(err));

@@ -10,8 +10,15 @@
  * (confirmed `*_admin_all` policies), so this repoint is a direct client
  * call, unlike the client-facing edge function which needed service role
  * only because a plain client has no such RLS.
+ *
+ * Notifications (Gap Verification Report Area 6): reject/approve-blank
+ * notify the client only (`coach_change_request_rejected_client`/
+ * `_approved_client`); approve-with-coach notifies the client
+ * (`coach_changed_client`), the outgoing coach (`client_transferred`), and
+ * the new coach (`new_client_assigned`) — matching web's `resolveCoachChangeRequest`.
  */
 import { supabase } from '@/lib/supabase/client';
+import { notifyProfile, resolveProfileIdForClient, resolveProfileIdForCoach } from './notify';
 
 export type AdminCoachChangeRequest = {
   id: string;
@@ -59,8 +66,14 @@ export async function rejectCoachChangeRequest(id: string): Promise<void> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { data: row, error: fetchError } = await supabase.from('coach_change_requests').select('client_id').eq('id', id).single();
+  if (fetchError) throw fetchError;
+
   const { error } = await supabase.from('coach_change_requests').update({ status: 'rejected', resolved_by: user?.id, resolved_at: new Date().toISOString() }).eq('id', id);
   if (error) throw error;
+
+  const clientProfileId = await resolveProfileIdForClient(row.client_id);
+  await notifyProfile(clientProfileId, 'booking', 'Coach change request declined', 'Your coach change request was not approved.', 'coach_change_request_rejected_client');
 }
 
 /** Approve with no coach picked — client self-serves the schedule search afterward (New PRD.md §4.C). */
@@ -68,8 +81,20 @@ export async function approveCoachChangeRequestBlank(id: string): Promise<void> 
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { data: row, error: fetchError } = await supabase.from('coach_change_requests').select('client_id').eq('id', id).single();
+  if (fetchError) throw fetchError;
+
   const { error } = await supabase.from('coach_change_requests').update({ status: 'approved', resolved_by: user?.id, resolved_at: new Date().toISOString() }).eq('id', id);
   if (error) throw error;
+
+  const clientProfileId = await resolveProfileIdForClient(row.client_id);
+  await notifyProfile(
+    clientProfileId,
+    'booking',
+    'Coach change approved',
+    'Your coach change request was approved — choose your new coach to continue.',
+    'coach_change_request_approved_client'
+  );
 }
 
 /** Approve + pick the new coach directly — repoints the client's existing recurring pattern immediately. */
@@ -77,6 +102,13 @@ export async function approveCoachChangeRequestWithCoach(id: string, clientId: s
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: requestRow, error: requestError } = await supabase
+    .from('coach_change_requests')
+    .select('current_coach_id, client_profiles(profiles(full_name))')
+    .eq('id', id)
+    .single();
+  if (requestError) throw requestError;
 
   const { data: activeSlots, error: slotsError } = await supabase
     .from('recurring_slots')
@@ -114,4 +146,23 @@ export async function approveCoachChangeRequestWithCoach(id: string, clientId: s
     .update({ status: 'approved', new_coach_id: newCoachId, resolved_by: user?.id, resolved_at: new Date().toISOString() })
     .eq('id', id);
   if (updateError) throw updateError;
+
+  const clientProfile = Array.isArray(requestRow.client_profiles) ? requestRow.client_profiles[0] : requestRow.client_profiles;
+  const clientProfileRow = clientProfile ? (Array.isArray(clientProfile.profiles) ? clientProfile.profiles[0] : clientProfile.profiles) : null;
+  const clientName = clientProfileRow?.full_name ?? 'Client';
+
+  const { data: newCoachRow, error: newCoachError } = await supabase.from('coach_profiles').select('profile_id, profiles(full_name)').eq('id', newCoachId).maybeSingle();
+  if (newCoachError) throw newCoachError;
+  const newCoachProfile = newCoachRow ? (Array.isArray(newCoachRow.profiles) ? newCoachRow.profiles[0] : newCoachRow.profiles) : null;
+  const newCoachName = newCoachProfile?.full_name ?? 'your new coach';
+
+  const clientProfileId = await resolveProfileIdForClient(clientId);
+  await notifyProfile(clientProfileId, 'booking', 'Coach changed', `You've been moved to ${newCoachName}.`, 'coach_changed_client');
+
+  if (requestRow.current_coach_id) {
+    const oldCoachProfileId = await resolveProfileIdForCoach(requestRow.current_coach_id);
+    await notifyProfile(oldCoachProfileId, 'booking', 'Client transferred', `${clientName} has been transferred to another coach.`, 'client_transferred');
+  }
+
+  await notifyProfile(newCoachRow?.profile_id ?? null, 'booking', 'New client assigned', `${clientName} has been assigned to you.`, 'new_client_assigned');
 }

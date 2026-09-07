@@ -201,7 +201,19 @@ export default function AdminClientDetailScreen() {
                 busy={busy}
                 error={actionError}
                 onSubmit={(shadowCoachId, startsOn, endsOn, reason) =>
-                  run(() => assignShadowCoach({ clientId: id, primaryCoachId: client.coachId!, shadowCoachId, startsOn, endsOn, reason: reason || null }))
+                  run(() =>
+                    assignShadowCoach({
+                      clientId: id,
+                      clientName: client.full_name,
+                      primaryCoachId: client.coachId!,
+                      primaryCoachName: client.coachName ?? 'Coach',
+                      shadowCoachId,
+                      shadowCoachName: (coachOptions ?? []).find((c) => c.id === shadowCoachId)?.full_name ?? 'Coach',
+                      startsOn,
+                      endsOn,
+                      reason: reason || null,
+                    })
+                  )
                 }
               />
             )}

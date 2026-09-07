@@ -3,8 +3,10 @@
  * queue)" + "Assign Shadow Coach" flow. See src/lib/data/admin-shadow.ts
  * header for how "uncovered leave-affected sessions" is computed and for
  * the confirmed `assign_shadow_coach` RPC behavior (reassigns the
- * affected bookings directly, not just a record). Relit from the
- * previous dark-theme version — same data layer, untouched.
+ * affected bookings directly, not just a record). Leave approval now
+ * auto-assigns shadow coverage (New PRD.md §3.15); this screen remains the
+ * manual fallback for whatever the auto-cascade couldn't cover, plus
+ * emergency/undocumented absences that never went through Leave Requests.
  */
 import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
@@ -63,10 +65,14 @@ function GapCard({
     setAssigning(true);
     setError(null);
     try {
+      const shadowCoachName = candidates.find((c) => c.id === selectedCoach)?.full_name ?? 'Coach';
       await assignShadowCoach({
         clientId: gap.clientId,
+        clientName: gap.clientName,
         primaryCoachId: gap.primaryCoachId,
+        primaryCoachName: gap.primaryCoachName,
         shadowCoachId: selectedCoach,
+        shadowCoachName,
         startsOn: gap.startsOn,
         endsOn: gap.endsOn,
         reason: `Coverage for ${gap.primaryCoachName}'s leave`,

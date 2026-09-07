@@ -1,10 +1,8 @@
 /**
  * Escalation Detail (admin) — GATED WORKFLOW — New PRD.md §4.C "Screen:
  * Escalation Detail — the canonical gated workflow". See
- * src/lib/data/admin-escalations.ts header: the call-gate is enforced
- * here client-side only, matching the web app's `requireCalledClient()`
- * — not a DB constraint. Relit from the previous dark-theme version —
- * same data layer, untouched.
+ * src/lib/data/admin-escalations.ts header: the call-gate is enforced both
+ * client-side (for UX) and by a DB trigger (for the real trust boundary).
  */
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -31,8 +29,25 @@ import {
 import { useAsync } from '@/lib/data/use-async';
 import { getErrorMessage } from '@/lib/data/errors';
 
-const FAULT_OPTIONS = ['client', 'coach', 'platform', 'unclear'];
-const ISSUE_TYPE_OPTIONS = ['coach_behavior', 'scheduling', 'billing', 'technical', 'other'];
+/** Gap Verification Report Area 9 — DB CHECK-constrained (migration 0049), exact values/labels, not inferred. */
+const FAULT_OPTIONS = [
+  { value: 'coach', label: 'Coach' },
+  { value: 'client', label: 'Client' },
+  { value: 'platform', label: 'Platform / Technical' },
+  { value: 'third_party', label: 'Third-party (Zoom, payments, etc.)' },
+  { value: 'none', label: 'No fault — miscommunication' },
+  { value: 'other', label: 'Other' },
+];
+/** Same as the client's own concern-category picker (CONCERN_CATEGORIES) — exact values/labels, not inferred. */
+const ISSUE_TYPE_OPTIONS = [
+  { value: 'slot_not_available', label: 'Slot not available' },
+  { value: 'coach_missed_session', label: 'Coach missed session' },
+  { value: 'need_schedule_change', label: 'Need schedule change' },
+  { value: 'payment_issue', label: 'Payment issue' },
+  { value: 'technical_issue', label: 'Technical issue' },
+  { value: 'want_coach_change', label: 'Want to change coach' },
+  { value: 'other', label: 'Other' },
+];
 
 const STATUS_TONE: Record<string, 'teal' | 'green' | 'red'> = {
   open: 'red',
@@ -127,13 +142,13 @@ export default function AdminEscalationDetailScreen() {
             <LightSectionHeader title="Issue type" />
             <LightChipGrid>
               {ISSUE_TYPE_OPTIONS.map((opt) => (
-                <LightChip key={opt} label={opt.replace('_', ' ')} selected={issueType === opt} onPress={() => !isResolved && setIssueType(opt)} disabled={isResolved} />
+                <LightChip key={opt.value} label={opt.label} selected={issueType === opt.value} onPress={() => !isResolved && setIssueType(opt.value)} disabled={isResolved} />
               ))}
             </LightChipGrid>
             <Text style={styles.label}>FAULT</Text>
             <LightChipGrid>
               {FAULT_OPTIONS.map((opt) => (
-                <LightChip key={opt} label={opt} selected={fault === opt} onPress={() => !isResolved && setFault(opt)} disabled={isResolved} />
+                <LightChip key={opt.value} label={opt.label} selected={fault === opt.value} onPress={() => !isResolved && setFault(opt.value)} disabled={isResolved} />
               ))}
             </LightChipGrid>
             <Text style={styles.label}>SUMMARY</Text>

@@ -6,20 +6,22 @@
  * `escalation_notes_admin_all` give admin full read/write, no
  * restrictions beyond `is_admin()`.
  *
- * **Rule 22's call-gate is NOT a DB constraint** — no CHECK, no trigger
- * enforces `called_client_at` being set before other fields change
- * (confirmed via the same class of check used for the 24h-leave-notice
- * finding). It's enforced here client-side only, mirroring the web
- * app's `requireCalledClient()` guard, same "document the real
- * boundary, don't assume DB enforcement" discipline as the rest of this
- * project.
+ * Rule 22's call-gate is enforced client-side here (same UX as the web
+ * app's `requireCalledClient()` guard, for a fast, friendly error) AND by
+ * a DB trigger (`escalations_call_gate` / `escalation_notes_call_gate`,
+ * see supabase/migrations/20260907120000_escalation_call_gate_trigger.sql)
+ * that rejects the same mutations at the database layer — the real trust
+ * boundary for a client that talks to Supabase directly, since there is
+ * no server-action layer in front of it here.
  *
- * `admin_issue_type`/`fault` are free-text columns, not enums — no live
- * data exists yet to anchor a canonical vocabulary (checked: zero rows
- * have either set). The chip options offered are a reasonable inferred
- * set, not a confirmed list.
+ * `admin_issue_type` is a free-text column (no DB constraint); `fault` is
+ * free-text at the column level but DB CHECK-constrained to exactly 6
+ * values. Both vocabularies are confirmed canonical (Gap Verification
+ * Report, Area 9 — src/lib/constants/concern-categories.ts) — see
+ * ISSUE_TYPE_OPTIONS/FAULT_OPTIONS in escalation/[id].tsx.
  */
 import { supabase } from '@/lib/supabase/client';
+import { notifyProfile, resolveProfileIdForClient } from './notify';
 import type { EscalationStatus } from './concerns';
 
 export type AdminEscalation = {
@@ -148,6 +150,9 @@ export async function markEscalationInProgress(id: string): Promise<void> {
 
 export async function resolveEscalation(id: string, resolutionNotes: string): Promise<void> {
   const { data: userData } = await supabase.auth.getUser();
+  const { data: row, error: fetchError } = await supabase.from('escalations').select('client_id, reason').eq('id', id).single();
+  if (fetchError) throw fetchError;
+
   const { error } = await supabase
     .from('escalations')
     .update({
@@ -158,4 +163,7 @@ export async function resolveEscalation(id: string, resolutionNotes: string): Pr
     })
     .eq('id', id);
   if (error) throw error;
+
+  const clientProfileId = await resolveProfileIdForClient(row.client_id);
+  await notifyProfile(clientProfileId, 'feedback', 'Your concern was resolved', `We resolved your concern (${row.reason}): ${resolutionNotes}`, 'escalation_resolved_client');
 }

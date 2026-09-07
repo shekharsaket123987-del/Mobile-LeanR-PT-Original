@@ -2,8 +2,16 @@
  * Admin Leave Requests — LEANR_PT_MOBILE_PRD.md §10 "Screen: Leave
  * Requests (admin)". Confirmed live on 2026-08-19: `coach_leave_admin_all`
  * gives admin full read/write via `is_admin()`, no extra gate.
+ *
+ * Approving a leave (either `full_day` or `partial`) runs
+ * `runLeaveApprovalCascade` (admin-shadow.ts) — New PRD.md §3.15's
+ * automatic shadow-coverage cascade, confirmed to run for both leave types
+ * (only the set of occurrences considered differs: `partial` time-filters
+ * to the leave's own window). Rejecting a leave never cascades, per the PRD.
  */
 import { supabase } from '@/lib/supabase/client';
+import { runLeaveApprovalCascade, type LeaveCascadeOutcome } from './admin-shadow';
+import { notifyProfile, resolveProfileIdForCoach, formatDateRange } from './notify';
 import type { LeaveStatus, LeaveType } from './coach-availability';
 
 export type AdminLeaveRequest = {
@@ -45,7 +53,37 @@ export async function getPendingLeaveRequests(): Promise<AdminLeaveRequest[]> {
   });
 }
 
-export async function resolveLeaveRequest(id: string, status: 'approved' | 'rejected'): Promise<void> {
+export async function resolveLeaveRequest(id: string, status: 'approved' | 'rejected'): Promise<LeaveCascadeOutcome | null> {
+  const { data: leaveRow, error: fetchError } = await supabase
+    .from('coach_leave')
+    .select('id, coach_id, starts_on, ends_on, leave_type, partial_start_time, partial_end_time, coach_profiles(specialization, languages, profiles(full_name))')
+    .eq('id', id)
+    .single();
+  if (fetchError) throw fetchError;
+
   const { error } = await supabase.from('coach_leave').update({ status }).eq('id', id);
   if (error) throw error;
+
+  const coachProfile = Array.isArray(leaveRow.coach_profiles) ? leaveRow.coach_profiles[0] : leaveRow.coach_profiles;
+  const coachProfileRow = coachProfile ? (Array.isArray(coachProfile.profiles) ? coachProfile.profiles[0] : coachProfile.profiles) : null;
+  const coachName = coachProfileRow?.full_name ?? 'Coach';
+
+  if (status !== 'approved') {
+    const coachProfileId = await resolveProfileIdForCoach(leaveRow.coach_id);
+    const range = formatDateRange(leaveRow.starts_on, leaveRow.ends_on);
+    await notifyProfile(coachProfileId, 'booking', 'Leave request declined', `Your leave request for ${range} was not approved.`, 'leave_rejected');
+    return null;
+  }
+
+  return runLeaveApprovalCascade({
+    coachId: leaveRow.coach_id,
+    coachName,
+    startsOn: leaveRow.starts_on,
+    endsOn: leaveRow.ends_on,
+    leaveType: leaveRow.leave_type,
+    partialStartTime: leaveRow.partial_start_time,
+    partialEndTime: leaveRow.partial_end_time,
+    primarySpecialization: coachProfile?.specialization ?? null,
+    primaryLanguages: coachProfile?.languages ?? [],
+  });
 }
