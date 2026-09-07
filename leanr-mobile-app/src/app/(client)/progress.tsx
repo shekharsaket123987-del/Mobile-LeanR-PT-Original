@@ -11,7 +11,17 @@
  * code" per New PRD.md §15 — no photo-progress feature exists even on
  * web, so wiring an upload here would be inventing functionality that
  * doesn't exist in the web app.
+ *
+ * Purchase-gated (mockup poster's "NOT Available Until Plan Purchase" list
+ * explicitly includes Progress/Measurements): not linked from the demo-only
+ * More menu (`more.tsx`'s `PRE_PURCHASE_ROWS`), but this screen previously
+ * had no in-screen guard of its own — every other gated screen (Book a
+ * Session, Chat, Session History) defends in depth with BOTH nav-hiding AND
+ * a `hasEverPurchased` check here, so a demo-only client reaching this
+ * route directly (deep link, future internal link) could log measurements
+ * with no plan. Mirrors `book-session.tsx`'s exact gate treatment.
  */
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -27,6 +37,7 @@ import { LightEmptyState, LightErrorState, LightLoadingState } from '@/component
 import { LightBrand } from '@/constants/light-theme';
 import { DisplayFont } from '@/constants/theme';
 import { getProgressLogs, logProgress } from '@/lib/data/progress';
+import { getLatestSubscription } from '@/lib/data/subscription';
 import type { ProgressLog } from '@/lib/data/types';
 import { useAsync } from '@/lib/data/use-async';
 import { getErrorMessage } from '@/lib/data/errors';
@@ -61,6 +72,7 @@ const RANGES: { key: RangeKey; label: string; months: number | null }[] = [
 ];
 
 export default function ProgressScreen() {
+  const { data: subscription, loading: subscriptionLoading } = useAsync(getLatestSubscription, []);
   const { data: logs, loading, error, reload } = useAsync(getProgressLogs, []);
   const [tab, setTab] = useState<'measurements' | 'photos'>('measurements');
   const [metric, setMetric] = useState<Metric>('weight');
@@ -126,6 +138,17 @@ export default function ProgressScreen() {
   };
 
   const unit = METRICS.find((m) => m.key === metric)?.unit ?? '';
+
+  if (!subscriptionLoading && !subscription) {
+    return (
+      <LightScreenScaffold title="Progress">
+        <LightEmptyState message="You need an active plan before you can log progress." icon="lock-closed-outline" />
+        <LightPrimaryButton size="lg" onPress={() => router.push('/plans')}>
+          View plans
+        </LightPrimaryButton>
+      </LightScreenScaffold>
+    );
+  }
 
   return (
     <LightScreenScaffold title="Progress">
