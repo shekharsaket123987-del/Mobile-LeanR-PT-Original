@@ -19,7 +19,7 @@ import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { LightAuthShell } from '@/components/light/light-auth-shell';
-import { LightGhostButton, LightPrimaryButton } from '@/components/light/light-button';
+import { LightGhostButton, LightPrimaryButton, LightSecondaryButton } from '@/components/light/light-button';
 import { LightTextField } from '@/components/light/light-text-field';
 import { LightTextLink } from '@/components/light/light-tappable';
 import { LightBrand } from '@/constants/light-theme';
@@ -31,7 +31,7 @@ import { getErrorMessage } from '@/lib/data/errors';
 type Stage = 'form' | 'email-pending' | 'phone-otp';
 
 export default function SignupScreen() {
-  const { signUpWithPassword, setSignupPhoneStepInProgress } = useAuth();
+  const { signUpWithPassword, signInWithGoogle, setSignupPhoneStepInProgress } = useAuth();
   const [stage, setStage] = useState<Stage>('form');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -40,6 +40,7 @@ export default function SignupScreen() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   const finishSignup = () => {
     setSignupPhoneStepInProgress(false);
@@ -85,6 +86,14 @@ export default function SignupScreen() {
     } catch (err) {
       setError(getErrorMessage(err)); // stay on phone-otp stage — Resend/Skip are still available
     }
+  };
+
+  const onGoogleSignUp = async () => {
+    setError(null);
+    setGoogleSubmitting(true);
+    const { error: googleError } = await signInWithGoogle();
+    setGoogleSubmitting(false);
+    if (googleError) setError(googleError);
   };
 
   const onResend = async () => {
@@ -194,6 +203,12 @@ export default function SignupScreen() {
         Create account
       </LightPrimaryButton>
 
+      <Text style={styles.orDivider}>OR</Text>
+
+      <LightSecondaryButton onPress={onGoogleSignUp} loading={googleSubmitting} size="lg">
+        Continue with Google
+      </LightSecondaryButton>
+
       <LightTextLink onPress={() => router.replace('/login')} style={styles.link}>
         Already have an account? Log in
       </LightTextLink>
@@ -203,6 +218,7 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   error: { color: LightBrand.alertRed, fontFamily: 'Manrope_500Medium', fontSize: 13 },
+  orDivider: { fontFamily: 'Manrope_600SemiBold', fontSize: 12.5, color: LightBrand.textMuted, textAlign: 'center' },
   centerBtn: { alignSelf: 'center' },
   link: { alignSelf: 'center', marginTop: 8 },
   skipLink: {
