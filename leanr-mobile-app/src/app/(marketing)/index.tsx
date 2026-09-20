@@ -15,6 +15,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { PrimaryButton, SecondaryButton } from '@/components/ui/button';
 import { Brand, DisplayFont } from '@/constants/theme';
 import { useAuth } from '@/lib/auth/auth-context';
+import { setPendingBookDemoIntent } from '@/lib/auth/post-login-intent';
 
 const WHY_CHOOSE: { icon: keyof typeof Ionicons.glyphMap; title: string }[] = [
   { icon: 'people-outline', title: 'Expert Coaches' },
@@ -24,7 +25,13 @@ const WHY_CHOOSE: { icon: keyof typeof Ionicons.glyphMap; title: string }[] = [
 
 export default function MarketingHomeScreen() {
   const { session } = useAuth();
-  const onBookFreeDemo = () => router.push(session ? '/book-free-demo' : '/login');
+  const onBookFreeDemo = () => {
+    if (session) {
+      router.push('/book-free-demo');
+      return;
+    }
+    setPendingBookDemoIntent().then(() => router.push('/login'));
+  };
 
   return (
     <ScreenScaffold title="Get Expert Guidance" subtitle="Tailored to your goals — book a free demo with our certified coaches.">

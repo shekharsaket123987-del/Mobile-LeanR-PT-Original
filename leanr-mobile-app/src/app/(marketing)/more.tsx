@@ -6,10 +6,17 @@ import { ScreenScaffold } from '@/components/screen-scaffold';
 import { GlassCard } from '@/components/ui/glass-card';
 import { MenuRow } from '@/components/ui/menu-row';
 import { useAuth } from '@/lib/auth/auth-context';
+import { setPendingBookDemoIntent } from '@/lib/auth/post-login-intent';
 
 export default function MarketingMoreScreen() {
   const { session } = useAuth();
-  const onBookFreeDemo = () => router.push(session ? '/book-free-demo' : '/login');
+  const onBookFreeDemo = () => {
+    if (session) {
+      router.push('/book-free-demo');
+      return;
+    }
+    setPendingBookDemoIntent().then(() => router.push('/login'));
+  };
 
   return (
     <ScreenScaffold title="More">

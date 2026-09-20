@@ -30,6 +30,7 @@ import { TextField } from '@/components/ui/text-field';
 import { EmptyState, LoadingState } from '@/components/ui/states';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/lib/auth/auth-context';
+import { setPendingBookDemoIntent } from '@/lib/auth/post-login-intent';
 import { addIstDays, formatIstDateLabel, formatIstTimeLabel, todayIst, type IstDate } from '@/lib/data/booking-wizard';
 import { confirmAnonymousDemoBooking, findAnonymousDemoSlots, type AnonymousDemoMatch } from '@/lib/data/anonymous-demo-booking';
 import { getErrorMessage } from '@/lib/data/errors';
@@ -71,6 +72,13 @@ export default function BookFreeDemoScreen() {
       cancelled = true;
     };
   }, [selectedDate]);
+
+  // Backstop for a direct link straight into this route (bypassing the CTAs
+  // that already set this before navigating here) — fire-and-forget is fine,
+  // this always completes well before the visitor finishes logging in.
+  useEffect(() => {
+    if (!session) setPendingBookDemoIntent();
+  }, [session]);
 
   if (!session) return <Redirect href="/login" />;
 
