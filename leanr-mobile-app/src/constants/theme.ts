@@ -91,6 +91,14 @@ export const Spacing = {
   four: 24,
   five: 32,
   six: 64,
+  // Named steps for the gaps that fall between the values above — already
+  // the de-facto in-practice sizes across the app (icon/text gaps, row
+  // padding, section spacing); named here so new code reuses them instead
+  // of reinventing another raw number.
+  xs: 6,
+  sm: 10,
+  md: 12,
+  lg: 20,
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;

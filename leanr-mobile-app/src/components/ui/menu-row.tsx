@@ -6,15 +6,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Brand } from '@/constants/theme';
+
 type Props = {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
   badge?: number;
   last?: boolean;
+  /** Red-tinted variant for irreversible/exit actions (e.g. "Sign out"). */
+  destructive?: boolean;
 };
 
-export function MenuRow({ label, icon, onPress, badge, last }: Props) {
+export function MenuRow({ label, icon, onPress, badge, last, destructive }: Props) {
+  const tint = destructive ? Brand.alertRed : 'rgba(255,255,255,0.7)';
   return (
     <Pressable
       onPress={onPress}
@@ -23,9 +28,9 @@ export function MenuRow({ label, icon, onPress, badge, last }: Props) {
       accessibilityLabel={label}
       style={({ pressed }) => [styles.row, !last && styles.divider, pressed && onPress && styles.pressed]}>
       <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={17} color="rgba(255,255,255,0.7)" />
+        <Ionicons name={icon} size={17} color={tint} />
       </View>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, destructive && styles.labelDestructive]}>{label}</Text>
       {badge != null && badge > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
@@ -49,6 +54,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: { flex: 1, fontFamily: 'Manrope_600SemiBold', fontSize: 15, color: '#FFFFFF' },
+  labelDestructive: { color: Brand.alertRed },
   badge: {
     minWidth: 20,
     height: 20,

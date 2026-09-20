@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth/auth-context';
 import { Avatar } from './avatar';
 import { Badge } from './badge';
 import { GlassPanel } from './glass-card';
+import { MenuRow } from './menu-row';
 
 const ROLE_LABEL: Record<string, string> = { client: 'Client', coach: 'Coach', admin: 'Admin' };
 
@@ -72,6 +73,7 @@ export function ProfileButton({ photoUrl }: { photoUrl?: string | null }) {
 
                 <MenuRow
                   label="View profile"
+                  icon="person-outline"
                   onPress={() => {
                     close();
                     router.push('/profile');
@@ -79,7 +81,9 @@ export function ProfileButton({ photoUrl }: { photoUrl?: string | null }) {
                 />
                 <MenuRow
                   label="Sign out"
+                  icon="log-out-outline"
                   destructive
+                  last
                   onPress={() => {
                     close();
                     signOut();
@@ -94,18 +98,6 @@ export function ProfileButton({ photoUrl }: { photoUrl?: string | null }) {
   );
 }
 
-function MenuRow({ label, onPress, destructive }: { label: string; onPress: () => void; destructive?: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}>
-      <Text style={[styles.menuRowText, destructive && styles.menuRowTextDestructive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   trigger: { borderRadius: 22 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
@@ -115,8 +107,4 @@ const styles = StyleSheet.create({
   identityText: { flexShrink: 1, gap: 6 },
   name: { fontFamily: 'Manrope_700Bold', fontSize: 15, color: '#FFFFFF' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)', marginBottom: 4 },
-  menuRow: { paddingVertical: 12, paddingHorizontal: 6, borderRadius: 10 },
-  menuRowPressed: { backgroundColor: 'rgba(255,255,255,0.06)' },
-  menuRowText: { fontFamily: 'Manrope_600SemiBold', fontSize: 14.5, color: '#FFFFFF' },
-  menuRowTextDestructive: { color: '#EF4444' },
 });

@@ -709,9 +709,10 @@ const lightStyles = StyleSheet.create({
   flex: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8 },
   greetingCol: { flex: 1, gap: 4, paddingRight: 12 },
-  greeting: { fontFamily: DisplayFont, fontWeight: '700', fontStyle: 'italic', fontSize: 22, color: '#FFFFFF', lineHeight: 26 },
+  greeting: { fontFamily: DisplayFont, fontWeight: '700', fontStyle: 'italic', fontSize: 28, color: '#FFFFFF', lineHeight: 32, letterSpacing: -0.3 },
   journeySubtitleText: { fontFamily: 'Manrope_500Medium', fontSize: 12.5, color: 'rgba(255,255,255,0.6)' },
-  scroll: { flexGrow: 1, padding: 20, paddingTop: 16, paddingBottom: 40, gap: 16 },
+  // paddingBottom clears the floating glass tab bar, same as ScreenScaffold's scrollContent.
+  scroll: { flexGrow: 1, padding: 20, paddingTop: 16, paddingBottom: 120, gap: 16 },
   heroCard: { gap: 6, paddingVertical: 18 },
   heroEyebrow: { fontFamily: 'Manrope_700Bold', fontSize: 11.5, letterSpacing: 0.8, color: Brand.yellow },
   heroDate: { fontFamily: 'Manrope_800ExtraBold', fontSize: 18, color: '#FFFFFF' },
@@ -743,8 +744,10 @@ const lightStyles = StyleSheet.create({
   sessionTypeText: { fontFamily: 'Manrope_500Medium', fontSize: 12, color: 'rgba(255,255,255,0.45)' },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
   joinCountdownText: { fontFamily: 'Manrope_700Bold', fontSize: 13, color: Brand.yellow, marginTop: 8 },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCell: { flexGrow: 1, flexBasis: '30%' },
+  // flexBasis: 0 (not a percentage) so the gap is never double-counted against
+  // the 100% width budget — the classic cause of an unwanted wrap on narrow phones.
+  statGrid: { flexDirection: 'row', gap: 10 },
+  statCell: { flex: 1, minWidth: 0 },
   metricRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
