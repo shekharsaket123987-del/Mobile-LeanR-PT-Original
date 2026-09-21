@@ -89,14 +89,21 @@ export async function getCoachClientsList(): Promise<CoachClientListRow[]> {
   const coachId = await getMyCoachProfileId();
   if (!coachId) return [];
 
-  const { data: slots, error: slotsError } = await supabase
-    .from('recurring_slots')
-    .select('client_id, day_of_week, start_time')
-    .eq('coach_id', coachId)
-    .eq('status', 'active');
+  const [{ data: slots, error: slotsError }, { data: demoBookings, error: demoBookingsError }] = await Promise.all([
+    supabase.from('recurring_slots').select('client_id, day_of_week, start_time').eq('coach_id', coachId).eq('status', 'active'),
+    // A demo/assessment booking never creates a recurring_slots row (that's
+    // reserved for an ongoing weekly PT schedule), so a client who has only
+    // booked a demo with this coach and hasn't purchased a plan yet would
+    // otherwise never enter the roster at all — silently unreachable via
+    // every status filter including "Demo", despite deriveClientStatus
+    // explicitly supporting that bucket. Union both sources of "this coach's
+    // client" up front so demo-only clients show up like any other.
+    supabase.from('bookings').select('client_id').eq('coach_id', coachId).eq('session_type', 'assessment'),
+  ]);
   if (slotsError) throw slotsError;
+  if (demoBookingsError) throw demoBookingsError;
 
-  const clientIds = [...new Set((slots ?? []).map((s) => s.client_id))];
+  const clientIds = [...new Set([...(slots ?? []).map((s) => s.client_id), ...(demoBookings ?? []).map((b) => b.client_id)])];
   if (clientIds.length === 0) return [];
 
   const slotsByClient = new Map<string, { day_of_week: number; start_time: string }[]>();
