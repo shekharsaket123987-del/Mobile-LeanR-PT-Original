@@ -46,7 +46,7 @@ import type { Message } from '@/lib/data/types';
 import { useAsync } from '@/lib/data/use-async';
 import { pickChatImage, type PickedImage } from '@/lib/media/pick-chat-image';
 import { getErrorMessage } from '@/lib/data/errors';
-import { Brand } from '@/constants/theme';
+import { Brand, Spacing } from '@/constants/theme';
 
 /**
  * Pre-purchase Coach Profile — three states per ClientPortal.md §12:
@@ -332,8 +332,8 @@ export default function CoachScreen() {
 
 const lightStyles = StyleSheet.create({
   coachCard: { gap: 10 },
-  coachRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  coachInfo: { flexShrink: 1, gap: 3 },
+  coachRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  coachInfo: { flexShrink: 1, gap: Spacing.one },
   coachName: { fontFamily: 'Manrope_800ExtraBold', fontSize: 19, color: '#FFFFFF' },
   coachSpecialty: { fontFamily: 'Manrope_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.6)' },
   coachRating: { fontFamily: 'Manrope_700Bold', fontSize: 13, color: Brand.yellow },

@@ -17,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Motion, Radius } from '@/constants/theme';
+import { MaxContentWidth, Motion, Radius } from '@/constants/theme';
 import { GlassPanel } from './glass-card';
 import { IconButton } from './button';
 
@@ -83,7 +83,7 @@ export function BottomSheet({ visible, onClose, title, subtitle, children }: Pro
 
         <GestureDetector gesture={pan}>
           <Animated.View style={[styles.sheetWrap, { paddingBottom: insets.bottom + 16 }, sheetStyle]}>
-            <GlassPanel style={[styles.panel, { maxHeight: height * 0.82 }]}>
+            <GlassPanel style={[styles.panel, { maxHeight: height * 0.82 }]} contentStyle={styles.panelContent}>
               <View style={styles.grabber} />
               {title && (
                 <View style={styles.header}>
@@ -110,9 +110,17 @@ export function BottomSheet({ visible, onClose, title, subtitle, children }: Pro
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheetWrap: { paddingHorizontal: 12 },
-  panel: { borderRadius: Radius.lg, paddingTop: 10 },
-  scrollArea: { flexShrink: 1 },
+  sheetWrap: { paddingHorizontal: 12, alignItems: 'center' },
+  // Caps + centers the sheet on tablet/web-wide viewports instead of
+  // stretching edge-to-edge; unchanged on phone-size screens.
+  panel: { width: '100%', maxWidth: MaxContentWidth - 24, borderRadius: Radius.lg, paddingTop: 10 },
+  // `content`'s default shrink-wrap sizing is overridden here (see
+  // GlassCard's `contentStyle` doc comment) so this flex column actually
+  // fills `panel`'s maxHeight-bounded height instead of growing past it —
+  // required for `scrollArea` below to have a real bounded height to scroll
+  // within rather than silently overflowing and getting clipped.
+  panelContent: { flex: 1, minHeight: 0 },
+  scrollArea: { flex: 1, minHeight: 0 },
   scrollContent: { paddingBottom: 4 },
   grabber: {
     alignSelf: 'center',

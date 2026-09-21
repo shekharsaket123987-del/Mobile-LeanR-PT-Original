@@ -13,7 +13,7 @@ import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Brand, Colors, DisplayFont, Radius, Shadow } from '@/constants/theme';
+import { Brand, Colors, DisplayFont, MaxContentWidth, Radius, Shadow } from '@/constants/theme';
 import { GlassCard } from '@/components/ui/glass-card';
 import { EmptyState as UiEmptyState, ErrorState as UiErrorState, LoadingState as UiLoadingState } from '@/components/ui/states';
 
@@ -33,10 +33,15 @@ export function ScreenScaffold({ title, subtitle, children }: Props) {
         pointerEvents="none"
       />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-          {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
-          {children}
+        <ScrollView contentContainerStyle={styles.scrollOuter}>
+          {/* Capped + centered on wide viewports (tablet/web) so content never
+              stretches edge-to-edge; identical to the old unbounded layout on
+              phone-width screens since maxWidth only bites above MaxContentWidth. */}
+          <View style={styles.scrollContent}>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+            {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
+            {children}
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -56,8 +61,9 @@ export const styles = StyleSheet.create({
   root: { flex: 1 },
   topGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },
   safeArea: { flex: 1 },
+  scrollOuter: { alignItems: 'center' },
   // paddingBottom clears the floating glass tab bar (components/ui/floating-tab-bar.tsx: ~60px bar + 10px float margin + safe-area inset).
-  scrollContent: { padding: 20, gap: 16, paddingBottom: 120 },
+  scrollContent: { width: '100%', maxWidth: MaxContentWidth, padding: 20, gap: 16, paddingBottom: 120 },
   title: {
     fontFamily: DisplayFont,
     fontWeight: '700',

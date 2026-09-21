@@ -30,7 +30,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs } from 'expo-router';
 
-import { Brand, Glass, Motion, Radius, Shadow } from '@/constants/theme';
+import { Brand, Glass, MaxContentWidth, Motion, Radius, Shadow } from '@/constants/theme';
 
 type TabBarProps = NonNullable<ComponentProps<typeof Tabs>['tabBar']> extends (props: infer P) => unknown ? P : never;
 
@@ -134,11 +134,18 @@ const BAR_HEIGHT = 60;
 const styles = StyleSheet.create({
   floatWrap: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    alignItems: 'center',
   },
   bar: {
     flexDirection: 'row',
+    width: '100%',
+    // Caps the bar on tablet/web-wide viewports so tabs stay evenly spaced
+    // instead of stretching edge-to-edge; identical width to before on
+    // phone-size screens since this only bites above MaxContentWidth.
+    maxWidth: MaxContentWidth - 40,
     height: BAR_HEIGHT,
     borderRadius: Radius.pill,
     overflow: 'hidden',
